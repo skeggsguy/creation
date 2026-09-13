@@ -15,7 +15,7 @@ run() {
 }
 
 log "=== data pipeline start ==="
-run src.data.download --sources gutenberg,scifi,haiku
+run src.data.download --sources gutenberg,scifi,haiku_statworx,haiku_dugward,haiku_reddit
 run src.data.download --sources fineweb_edu
 run src.data.gutenberg_filter --domains philosophy,comedy,scifi
 run src.data.clean_general --domains general,haiku

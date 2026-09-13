@@ -1,7 +1,8 @@
 # Decisions
 
 - **Build approach: hybrid.** Write the transformer + training loop ourselves (learning goal); borrow proven plumbing (tokenizer lib, data pipeline, LR schedule). Rejected: pure from-scratch (risks wasting the 24h run on our bugs) and adapting a repo wholesale (less learning).
-- **Run logistics: single dedicated 24h run**, plugged in, `caffeinate`, checkpointing throughout. Rejected: background/chunked runs (lower and less predictable throughput).
+- ~~Run logistics: single dedicated 24h run~~ — SUPERSEDED: goal grew from one 24h run to a full 300M Chinchilla pretrain.
+- **Run logistics: continuous day-and-night run (~5.5 days)** — one supervisor invocation, `--hours 140`, trainer self-stops at plateau end (5.4B tokens) then decay mints the final checkpoint. Interruptible anytime (30-min checkpoints, bit-exact resume). Rejected: six chained nightly sessions (more moving parts, same tokens).
 - ~~Model sizing: strict Chinchilla in one 24h run (~125M × 2.5B tokens)~~ — SUPERSEDED: user chose a bigger final model over a one-day-complete one.
 - **Model sizing: 300M params, multi-session to Chinchilla (6B tokens @ 20:1)** — first 24h run is session 1 of ~6–12 overnight sessions; calibration still measures real tok/s. Rejected: 125M single-day (capacity capped forever) and model-growth tricks (finicky, mixed results at small scale).
 - **LR schedule: warmup-stable-decay (WSD)**, not cosine — constant LR lets training extend across sessions indefinitely; re-run the short decay phase to mint a "finished" checkpoint at any point. Rejected: cosine (needs total horizon fixed in advance).
