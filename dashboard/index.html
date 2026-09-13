@@ -1,0 +1,369 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>llm-mod dashboard</title>
+<style>
+  :root {
+    --bg: #0e1113; --panel: #161a1d; --line: #262c31;
+    --fg: #d7dde2; --dim: #7c8894; --accent: #6fd3c7;
+    --green: #4ec97a; --amber: #e0b24a; --red: #e05a5a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg); color: var(--fg);
+    font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    margin: 0; padding: 16px; max-width: 1200px;
+  }
+  h1 { font-size: 14px; font-weight: 600; margin: 0 0 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); }
+  h1 b { color: var(--accent); }
+  h2 { font-size: 11px; font-weight: 600; margin: 0 0 8px; letter-spacing: .1em; text-transform: uppercase; color: var(--dim); }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px; margin-bottom: 12px; }
+  .grid { display: grid; grid-template-columns: 2fr 1fr; gap: 12px; align-items: start; }
+  @media (max-width: 820px) { .grid { grid-template-columns: 1fr; } }
+
+  /* progress */
+  .bar { height: 22px; background: #0a0d0f; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
+  .bar > div { height: 100%; width: 0; background: linear-gradient(90deg, #2f7d72, var(--accent)); transition: width .6s; }
+  .prog-meta { display: flex; justify-content: space-between; gap: 12px; margin-top: 8px; flex-wrap: wrap; color: var(--dim); }
+  .prog-meta b { color: var(--fg); font-weight: 600; }
+  #pct { font-size: 26px; font-weight: 600; color: var(--accent); line-height: 1.1; }
+
+  /* status strip */
+  .strip { display: flex; flex-wrap: wrap; gap: 8px; }
+  .cell { background: #0a0d0f; border: 1px solid var(--line); border-radius: 4px; padding: 6px 10px; min-width: 92px; }
+  .cell span { display: block; color: var(--dim); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; }
+  .cell b { font-weight: 600; }
+  .badge { border-color: transparent; }
+  .badge.ok { background: #16301f; color: var(--green); }
+  .badge.warn { background: #332a12; color: var(--amber); }
+  .badge.bad { background: #331818; color: var(--red); }
+
+  /* charts */
+  .chart-wrap { position: relative; height: 300px; }
+  .chart-wrap.small { height: 150px; }
+  .toggle { float: right; font: inherit; font-size: 11px; color: var(--dim); background: #0a0d0f;
+            border: 1px solid var(--line); border-radius: 4px; padding: 2px 8px; cursor: pointer; }
+  .toggle:hover { color: var(--fg); }
+  .toggle.on { color: var(--accent); border-color: var(--accent); }
+
+  /* samples + events */
+  .scroll { max-height: 320px; overflow-y: auto; }
+  .sample { border-bottom: 1px solid var(--line); padding: 8px 0; }
+  .sample:last-child { border-bottom: 0; }
+  .sample .p { font-weight: 700; color: var(--fg); }
+  .sample .t { color: var(--dim); white-space: pre-wrap; }
+  .sample .s { color: #55606b; font-size: 10px; }
+  .ev { display: flex; gap: 8px; padding: 2px 0; color: var(--dim); border-bottom: 1px solid #1b2025; }
+  .ev:last-child { border-bottom: 0; }
+  .ev time { color: #55606b; flex: none; }
+  .ev .k { color: var(--accent); flex: none; min-width: 120px; }
+  .ev.bad .k { color: var(--red); }
+  .empty { color: #55606b; font-style: italic; }
+</style>
+</head>
+<body>
+
+<h1>llm-mod &middot; <b id="runName">—</b></h1>
+
+<div class="panel">
+  <h2>Tokens</h2>
+  <div id="pct">0.00%</div>
+  <div class="bar"><div id="barFill"></div></div>
+  <div class="prog-meta">
+    <div><b id="tokDone">0</b> / <b id="tokTarget">6.00B</b> tokens</div>
+    <div>tok/s <b id="tpsNow">—</b></div>
+    <div>ETA <b id="eta">—</b></div>
+  </div>
+</div>
+
+<div class="panel">
+  <h2>Status</h2>
+  <div class="strip">
+    <div class="cell badge" id="hbCell"><span>heartbeat</span><b id="hb">—</b></div>
+    <div class="cell"><span>step</span><b id="step">—</b></div>
+    <div class="cell"><span>lr</span><b id="lr">—</b></div>
+    <div class="cell"><span>mem</span><b id="mem">—</b></div>
+    <div class="cell"><span>disk free</span><b id="disk">—</b></div>
+    <div class="cell"><span>session</span><b id="session">—</b></div>
+    <div class="cell"><span>latest ckpt</span><b id="ckpt">—</b></div>
+  </div>
+</div>
+
+<div class="panel">
+  <h2>Loss <button class="toggle" id="logBtn">log&nbsp;y</button></h2>
+  <div class="chart-wrap"><canvas id="lossChart"></canvas></div>
+</div>
+
+<div class="panel">
+  <h2>Throughput</h2>
+  <div class="chart-wrap small"><canvas id="tpsChart"></canvas></div>
+</div>
+
+<div class="grid">
+  <div class="panel">
+    <h2>Vibes</h2>
+    <div class="scroll" id="samples"><div class="empty">no samples yet</div></div>
+  </div>
+  <div class="panel">
+    <h2>Events</h2>
+    <div id="events"><div class="empty">no events yet</div></div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+(function () {
+  "use strict";
+
+  var TARGET = 6e9;                 // overwritten by /api/status
+  var cursor = 0;                   // next line index for /api/metrics?after=
+  var runName = null;
+  var train = [];                   // {x: tokensB, y: loss, tps, lr, mem, step, session}
+  var valByDomain = {};             // domain -> [{x,y}]
+  var events = [];
+
+  var DOMAIN_COLORS = ["#6fd3c7", "#e0b24a", "#a98bdd", "#e07a5a", "#5aa9e0", "#8dc46a", "#e05a9a"];
+  var $ = function (id) { return document.getElementById(id); };
+
+  // ---------- formatting ----------
+  function fmtTokens(n) {
+    if (!n) return "0";
+    if (n >= 1e9) return (n / 1e9).toFixed(2) + "B";
+    if (n >= 1e6) return (n / 1e6).toFixed(1) + "M";
+    if (n >= 1e3) return (n / 1e3).toFixed(1) + "K";
+    return String(n);
+  }
+  function fmtDur(s) {
+    if (!isFinite(s) || s <= 0) return "—";
+    var d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60);
+    if (d) return d + "d " + h + "h";
+    if (h) return h + "h " + m + "m";
+    return m + "m";
+  }
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>]/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c];
+    });
+  }
+  function clockOf(t) {
+    var d = new Date(t);
+    return isNaN(d) ? "--:--:--" : d.toISOString().slice(11, 19);
+  }
+
+  // ---------- charts ----------
+  var baseOpts = {
+    animation: false,
+    responsive: true,
+    maintainAspectRatio: false,
+    interaction: { mode: "nearest", intersect: false },
+    scales: {
+      x: {
+        type: "linear", title: { display: true, text: "tokens (B)", color: "#7c8894" },
+        ticks: { color: "#7c8894", maxTicksLimit: 8 }, grid: { color: "#232a30" }
+      },
+      y: { ticks: { color: "#7c8894" }, grid: { color: "#232a30" } }
+    },
+    plugins: { legend: { labels: { color: "#d7dde2", boxWidth: 10, font: { size: 11 } } } }
+  };
+
+  function lineSpec(label, color, dashed) {
+    return {
+      label: label, data: [], borderColor: color, backgroundColor: color,
+      borderWidth: dashed ? 1.5 : 1, borderDash: dashed ? [4, 3] : [],
+      pointRadius: 0, tension: 0.15, spanGaps: true
+    };
+  }
+
+  var lossChart = null, tpsChart = null;
+  if (window.Chart) {
+    lossChart = new Chart($("lossChart"), {
+      type: "line",
+      data: { datasets: [lineSpec("train", "#ffffff", false)] },
+      options: JSON.parse(JSON.stringify(baseOpts))
+    });
+    tpsChart = new Chart($("tpsChart"), {
+      type: "line",
+      data: { datasets: [lineSpec("tok/s", "#6fd3c7", false)] },
+      options: JSON.parse(JSON.stringify(baseOpts))
+    });
+    tpsChart.options.plugins.legend.display = false;
+  }
+
+  var logY = false;
+  $("logBtn").onclick = function () {
+    logY = !logY;
+    this.classList.toggle("on", logY);
+    if (!lossChart) return;
+    lossChart.options.scales.y.type = logY ? "logarithmic" : "linear";
+    lossChart.update();
+  };
+
+  function datasetFor(domain) {
+    var label = "val:" + domain;
+    var ds = lossChart.data.datasets.filter(function (d) { return d.label === label; })[0];
+    if (!ds) {
+      var i = lossChart.data.datasets.length - 1;
+      ds = lineSpec(label, DOMAIN_COLORS[i % DOMAIN_COLORS.length], true);
+      lossChart.data.datasets.push(ds);
+    }
+    return ds;
+  }
+
+  // ---------- ingest ----------
+  function ingest(lines) {
+    if (!lines || !lines.length) return;
+    for (var i = 0; i < lines.length; i++) {
+      var r = lines[i];
+      if (!r || typeof r !== "object") continue;
+      var x = (r.tokens || 0) / 1e9;
+      if (r.type === "train") {
+        train.push({ x: x, y: r.loss, tps: r.tps, lr: r.lr, mem: r.mem_gb, step: r.step,
+                     session: r.session, tokens: r.tokens });
+      } else if (r.type === "val" && r.losses) {
+        for (var d in r.losses) {
+          if (!Object.prototype.hasOwnProperty.call(r.losses, d)) continue;
+          (valByDomain[d] = valByDomain[d] || []).push({ x: x, y: r.losses[d] });
+        }
+      } else if (r.type === "event") {
+        events.push(r);
+      }
+    }
+    if (events.length > 200) events = events.slice(-200);
+    redraw();
+  }
+
+  // Keep the charts snappy after many sessions: even stride, always keeping the
+  // newest point.
+  function thin(arr, max) {
+    if (arr.length <= max) return arr;
+    var stride = Math.ceil(arr.length / max), out = [];
+    for (var i = 0; i < arr.length; i += stride) out.push(arr[i]);
+    if (out[out.length - 1] !== arr[arr.length - 1]) out.push(arr[arr.length - 1]);
+    return out;
+  }
+
+  function redraw() {
+    if (lossChart) {
+      lossChart.data.datasets[0].data = thin(train, 1500).map(function (p) { return { x: p.x, y: p.y }; });
+      for (var d in valByDomain) {
+        if (Object.prototype.hasOwnProperty.call(valByDomain, d)) datasetFor(d).data = thin(valByDomain[d], 1500);
+      }
+      lossChart.update();
+    }
+    if (tpsChart) {
+      tpsChart.data.datasets[0].data = thin(train, 1500).map(function (p) { return { x: p.x, y: p.tps }; });
+      tpsChart.update();
+    }
+    renderProgress();
+    renderEvents();
+  }
+
+  function renderProgress() {
+    var last = train[train.length - 1];
+    var tokens = last ? (last.tokens || 0) : 0;
+    var pct = TARGET > 0 ? (tokens / TARGET) * 100 : 0;
+    $("pct").textContent = pct.toFixed(2) + "%";
+    $("barFill").style.width = Math.max(0, Math.min(100, pct)) + "%";
+    $("tokDone").textContent = fmtTokens(tokens);
+    $("tokTarget").textContent = fmtTokens(TARGET);
+
+    var recent = train.slice(-30).filter(function (p) { return typeof p.tps === "number" && p.tps > 0; });
+    var tps = 0;
+    for (var i = 0; i < recent.length; i++) tps += recent[i].tps;
+    tps = recent.length ? tps / recent.length : 0;
+    $("tpsNow").textContent = tps ? Math.round(tps).toLocaleString() : "—";
+    $("eta").textContent = tps ? fmtDur((TARGET - tokens) / tps) : "—";
+
+    $("step").textContent = last && last.step != null ? last.step.toLocaleString() : "—";
+    $("lr").textContent = last && last.lr != null ? Number(last.lr).toExponential(2) : "—";
+    $("mem").textContent = last && last.mem != null ? last.mem.toFixed(1) + " GB" : "—";
+    $("session").textContent = last && last.session != null ? last.session : "—";
+  }
+
+  function renderEvents() {
+    var el = $("events");
+    if (!events.length) { el.innerHTML = '<div class="empty">no events yet</div>'; return; }
+    var bad = { nan_rollback: 1, crash_restart: 1 };
+    el.innerHTML = events.slice(-10).reverse().map(function (e) {
+      return '<div class="ev' + (bad[e.kind] ? " bad" : "") + '">' +
+             "<time>" + esc(clockOf(e.t)) + "</time>" +
+             '<span class="k">' + esc(e.kind) + "</span>" +
+             "<span>" + esc(e.detail || "") + "</span></div>";
+    }).join("");
+  }
+
+  function renderSamples(list) {
+    var el = $("samples");
+    if (!list || !list.length) { el.innerHTML = '<div class="empty">no samples yet</div>'; return; }
+    el.innerHTML = list.slice().reverse().map(function (s) {
+      return '<div class="sample"><div class="s">step ' + esc(s.step) + " &middot; " +
+             fmtTokens(s.tokens) + " tokens &middot; " + esc(clockOf(s.t)) + "</div>" +
+             '<div class="p">' + esc(s.prompt) + "</div>" +
+             '<div class="t">' + esc(s.text) + "</div></div>";
+    }).join("");
+  }
+
+  function renderStatus(s) {
+    if (!s) return;
+    if (typeof s.tokens_total_target === "number" && s.tokens_total_target > 0) TARGET = s.tokens_total_target;
+    runName = s.run_name;
+    $("runName").textContent = s.run_name || "no run";
+    $("disk").textContent = s.disk_free_gb != null ? s.disk_free_gb.toFixed(0) + " GB" : "—";
+    $("ckpt").textContent = s.latest_ckpt_step != null ? s.latest_ckpt_step.toLocaleString() : "—";
+
+    var age = s.heartbeat_age_s, cell = $("hbCell");
+    cell.classList.remove("ok", "warn", "bad");
+    if (age == null) { cell.classList.add("bad"); $("hb").textContent = "missing"; }
+    else {
+      cell.classList.add(age < 120 ? "ok" : age < 300 ? "warn" : "bad");
+      $("hb").textContent = age < 90 ? Math.round(age) + "s ago" : fmtDur(age) + " ago";
+    }
+  }
+
+  // ---------- polling ----------
+  function getJSON(url) {
+    return fetch(url, { cache: "no-store" }).then(function (r) {
+      if (!r.ok) throw new Error(r.status + " " + url);
+      return r.json();
+    });
+  }
+
+  function pollMetrics() {
+    getJSON("/api/metrics?after=" + cursor).then(function (d) {
+      if (d.run && runName && d.run !== runName) {
+        // the server switched runs under us: drop everything and refetch from 0
+        reset();
+        runName = d.run;
+        return;
+      }
+      if (typeof d.next === "number") {
+        if (d.next < cursor) reset();   // file truncated / server restarted
+        cursor = d.next;
+      }
+      ingest(d.lines);
+    }).catch(function () { /* server restarting: try again next tick */ });
+  }
+
+  function reset() {
+    cursor = 0; train = []; valByDomain = {}; events = [];
+    if (lossChart) lossChart.data.datasets = lossChart.data.datasets.slice(0, 1);
+    redraw();
+  }
+
+  function pollSlow() {
+    getJSON("/api/status").then(renderStatus).catch(function () {});
+    getJSON("/api/samples?n=20").then(function (d) { renderSamples(d.samples); }).catch(function () {});
+  }
+
+  redraw();
+  renderSamples([]);
+  pollSlow();
+  pollMetrics();
+  setInterval(pollMetrics, 5000);
+  setInterval(pollSlow, 15000);
+})();
+</script>
+</body>
+</html>

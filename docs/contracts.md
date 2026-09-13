@@ -47,12 +47,29 @@ build in `ckpt/.tmp/` then rename. Keep last 3 + every 1B-token milestone.
 
 `dashboard/server.py` (stdlib only) serves on **http://127.0.0.1:8471**:
 - `GET /` → index.html
-- `GET /api/metrics?after=<line>` → JSON lines from metrics.jsonl after line N
-- `GET /api/samples?n=20` → last n sample records
-- `GET /api/status` → {run_name, heartbeat_age_s, latest checkpoint step, disk_free_gb}
+- `GET /api/metrics?after=<N>` → `{"run", "lines": [...], "next": M}`. `after` is a
+  **parsed-record index**, not a raw file line (corrupt/blank lines are skipped);
+  clients must pass back the `next` they were given.
+- `GET /api/samples?n=20` → `{"run", "samples": [...last n records...]}`
+- `GET /api/status` → `{run_name, heartbeat_age_s, latest_ckpt_step, disk_free_gb,
+  tokens_total_target}`. Unknowns are `null`, never 0.
+- `tokens_total_target` is hardcoded in server.py (deliberately decoupled from src/);
+  if calibration ever changes TrainConfig.total_tokens, update it there too.
+
+## Supervisor ↔ trainer CLI surface
+
+Supervisor (`scripts/run_session.sh`) invokes exactly:
+`caffeinate -dims $TRAINER_CMD --config <path> --max-hours <float> [--halve-lr]`
+- `TRAINER_CMD` env override, default `uv run python src/train.py`.
+- `--max-hours` is the REMAINING budget (recomputed per restart), a float.
+- `train.py` must checkpoint and exit ≤120s after SIGTERM (then it gets SIGKILL).
+- `run_name` must stay a top-level double-quoted key in the session TOML (parsed by sed).
+- Trainer must flush after every metrics.jsonl / samples.jsonl write.
+- Supervisor owns `runs/<run>/supervisor.pid` and `session.log`; the trainer logs
+  session_start/session_end as `event` records in metrics.jsonl instead.
 
 ## Exit codes (train.py)
 
 0 = clean finish/stop requested · 3 = NaN/loss-spike rollback requested (supervisor
-restarts from latest ckpt with halved LR) · anything else = crash (supervisor
-restarts, max 3 times).
+restarts from latest ckpt with `--halve-lr`) · 130/143 (SIGINT/SIGTERM) = stop, not a
+crash · anything else = crash (supervisor restarts, max 3 times, 10s backoff).
