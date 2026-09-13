@@ -35,7 +35,7 @@ def iter_manifest_texts(manifest_path: Path, sample_chars: int, seed: int):
     (the manifest lists each domain's files; we interleave by domain weight so
     the tokenizer sees the same distribution the model will)."""
     manifest = json.loads(manifest_path.read_text())
-    entries = manifest["train"] if isinstance(manifest, dict) else manifest
+    entries = [e for e in manifest["entries"] if e["split"] == "train"]
     rng = random.Random(seed)
     by_domain: dict[str, list] = {}
     for e in entries:

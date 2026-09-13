@@ -90,8 +90,9 @@ def main() -> None:
 
     for split in ("train", "val"):
         by_domain: dict[str, list] = {}
-        for e in manifest[split]:
-            by_domain.setdefault(e["domain"], []).append(e)
+        for e in manifest["entries"]:
+            if e["split"] == split:
+                by_domain.setdefault(e["domain"], []).append(e)
         for domain, entries in tqdm(by_domain.items(), desc=split):
             n = encode_domain(tok, entries, out_dir, domain, split)
             meta["tokens"][split][domain] = n
