@@ -1,4 +1,5 @@
-# placeholder — calibration (phase 5) writes the final values here
+# calibrated 2026-09-13: mlx/batch16 = 13.1k tok/s (40% MFU), 33GB peak, sustained 12.6k
+# batch 32 slightly slower; batch 64 exceeds memory ceiling and swaps (looks alive, 40x slower)
 run_name = "run01"
 
 [model]
@@ -6,4 +7,4 @@ n_layers = 22
 
 [train]
 backend = "mlx"
-batch_size = 64
+batch_size = 16
