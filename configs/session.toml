@@ -8,3 +8,8 @@ n_layers = 22
 [train]
 backend = "mlx"
 batch_size = 16
+
+[data]
+# bin-proportional sampling: honors mix.py's 4-epoch caps + shortfall redistribution
+# (raw targets would replay haiku ~90x and scifi/comedy ~6x over 6B tokens)
+mix = { general = 0.604, textbooks = 0.104, philosophy = 0.096, psych = 0.067, scifi = 0.066, comedy = 0.062, haiku = 0.001 }
