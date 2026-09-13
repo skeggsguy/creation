@@ -1,0 +1,28 @@
+# Fixed vibe-eval prompts — base-model continuations, sampled with fixed seed at every checkpoint.
+# philosophy / wisdom
+The meaning of a good life is
+Marcus Aurelius wrote that the obstacle
+What we can learn from the Stoics about grief is
+Consciousness is best understood as
+The examined life begins when
+# advice / introspection (the end-goal register)
+When you feel overwhelmed by your work, remember that
+The wisest advice I ever received was
+Before making a difficult decision, one should
+# psychology / self-help
+Cognitive behavioural therapy teaches that our thoughts
+The difference between loneliness and solitude is
+# sci-fi
+The starship's engines failed just as the
+In the year 3000, humanity finally discovered
+The robot considered the question for a long time, then said
+The last transmission from the Mars colony read:
+# comedy
+A man walked into a bar carrying a ladder, and
+The funniest thing about being human is
+There are three rules for writing a good joke. Unfortunately,
+# haiku
+A haiku about autumn:
+A haiku about debugging code:
+# general English control
+The history of science shows that

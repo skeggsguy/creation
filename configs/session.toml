@@ -1,0 +1,9 @@
+# placeholder — calibration (phase 5) writes the final values here
+run_name = "run01"
+
+[model]
+n_layers = 22
+
+[train]
+backend = "mlx"
+batch_size = 64

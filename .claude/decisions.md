@@ -1,0 +1,13 @@
+# Decisions
+
+- **Build approach: hybrid.** Write the transformer + training loop ourselves (learning goal); borrow proven plumbing (tokenizer lib, data pipeline, LR schedule). Rejected: pure from-scratch (risks wasting the 24h run on our bugs) and adapting a repo wholesale (less learning).
+- **Run logistics: single dedicated 24h run**, plugged in, `caffeinate`, checkpointing throughout. Rejected: background/chunked runs (lower and less predictable throughput).
+- ~~Model sizing: strict Chinchilla in one 24h run (~125M × 2.5B tokens)~~ — SUPERSEDED: user chose a bigger final model over a one-day-complete one.
+- **Model sizing: 300M params, multi-session to Chinchilla (6B tokens @ 20:1)** — first 24h run is session 1 of ~6–12 overnight sessions; calibration still measures real tok/s. Rejected: 125M single-day (capacity capped forever) and model-growth tricks (finicky, mixed results at small scale).
+- **LR schedule: warmup-stable-decay (WSD)**, not cosine — constant LR lets training extend across sessions indefinitely; re-run the short decay phase to mint a "finished" checkpoint at any point. Rejected: cosine (needs total horizon fixed in advance).
+- **Corpus: clean-licensed only** — FineWeb-Edu + Cosmopedia (~70%) + Gutenberg philosophy/sci-fi/comedy (~30%, ≤15% per flavor, 2–4 epoch repeats OK). Rejected: SEP scrape (restrictive terms) and quote/joke sets (grey + tiny — reserved for the SFT stage).
+- **Tokenizer: train own BPE, 16k–32k vocab** on the actual mix. Rejected: GPT-2's 50k vocab (would sink ~35–50% of a ~125M model's params into embeddings).
+- **Corpus expansion: psychology/self-help slice (~7%) via fastText topic-filter over FineWeb-Edu; Cosmopedia slice topic-tilted to philosophy/logic/psych.** Rejected: raw C4 filtering (FineWeb-Edu is its quality-filtered successor) and open-phi textbook sets (Cosmopedia supersedes them; user's remembered IDs don't exist).
+- **Haiku: <1% pretraining exposure (statworx/haiku, dugward/english_haiku, huanggab/reddit_haiku); davanstrien/haiku_dpo reserved for SFT.** Expectation set: BPE models learn haiku style, not reliable 5-7-5 syllable counts. Rejected: hjhalimi/bfansderson IDs (don't exist on HF).
+- **Eval: three tiers** — per-domain val-loss curves every checkpoint; lm-evaluation-harness (HellaSwag, ARC-E, PIQA, LAMBADA, WinoGrande, SciQ) per session vs GPT-2/Pythia/SmolLM anchors; fixed 20-prompt vibe suite sampled per checkpoint (optional Claude-as-judge). Rejected: benchmark-only eval (blind to domain absorption).
+- **Framework: MLX vs PyTorch-MPS decided by calibration benchmark** — currently within ~1.2x of each other on M5; mixed precision (bf16 + fp32 master weights) either way. Rejected: assuming MLX wins (open M5 bf16-matmul regression).
